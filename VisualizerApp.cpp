@@ -14,8 +14,6 @@ void VisualizerApp::setVisualizer(uint8_t idx, Visualizer* pVisualizer) {
 }
 
 void VisualizerApp::start() {
-	pMatrix->clear();
-
 	for (int i = 0; i < 2; ++i) {
 		if (visualizers[i]) {
 			visualizers[i]->start();

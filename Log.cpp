@@ -1,4 +1,5 @@
 #include "Log.h"
+#include <WString.h>
 
 Log::Log() {
 }
@@ -31,20 +32,24 @@ void Log::setLogLevel(int level) {
 
 void Log::error(char* msg, ...) {
 	if (LOG_LEVEL_ERROR <= _level) {
-		Serial.print("Error: ");
+		bufferString.remove(0);
+		bufferString += "Error: ";
 		va_list args;
 		va_start(args, msg);
-		print(msg, args);
+		print(msg, args, bufferString);
+		println(bufferString);
 	}
 }
 
 void Log::info(char* msg, ...) {
 #if LOGLEVEL > 1
 	if (LOG_LEVEL_INFO <= _level) {
-		Serial.print("Info: ");
+		bufferString.remove(0);
+		bufferString += "Info: ";
 		va_list args;
 		va_start(args, msg);
-		print(msg, args);
+		print(msg, args, bufferString);
+		println(bufferString);
 	}
 #endif
 }
@@ -52,10 +57,12 @@ void Log::info(char* msg, ...) {
 void Log::debug(char* msg, ...) {
 #if LOGLEVEL > 2
 	if (LOG_LEVEL_DEBUG <= _level) {
-		Serial.print("Debug: ");
+		bufferString.remove(0);
+		bufferString += "Debug: ";
 		va_list args;
 		va_start(args, msg);
-		print(msg, args);
+		print(msg, args, bufferString);
+		println(bufferString);
 	}
 #endif
 }
@@ -64,15 +71,17 @@ void Log::verbose(char* msg, ...) {
 #if LOGLEVEL > 3
 	if (LOG_LEVEL_VERBOSE <= _level)
 	{
-		Serial.print("Verbose: ");
+		bufferString.remove(0);
+		bufferString += "Verbose: ";
 		va_list args;
 		va_start(args, msg);
-		print(msg,args);
+		print(msg, args, bufferString);
+		println(bufferString);
 	}
 #endif
 }
 
-void Log::print(const char *format, va_list args) {
+void Log::print(const char *format, va_list args, String& dst) {
 	boolean sendClient = _logServer && _pServerClient
 			&& _pServerClient->connected();
 
@@ -81,102 +90,42 @@ void Log::print(const char *format, va_list args) {
 			++format;
 			if (*format == '\0')
 				break;
-			if (*format == '%') {
-				Serial.print(*format);
-				if (sendClient)
-					_pServerClient->print(*format);
-
+			else if (*format == '%') {
+				dst.concat(*format);
 				continue;
-			}
-			if (*format == 's') {
+			} else if (*format == 's') {
 				register char *s = (char *) va_arg(args, int);
-				Serial.print(s);
-				if (sendClient)
-					_pServerClient->print(s);
+				dst.concat(s);
 				continue;
-			}
-			if (*format == 'd' || *format == 'i') {
-				Serial.print(va_arg(args, int), DEC);
-				if (sendClient)
-					_pServerClient->print(va_arg(args, int), DEC);
+			} else if (*format == 'd' || *format == 'i' || *format == 'c') {
+				dst.concat(va_arg(args, int));
 				continue;
-			}
-			if (*format == 'x') {
-				Serial.print(va_arg(args, int), HEX);
-				if (sendClient)
-					_pServerClient->print(va_arg(args, int), HEX);
+			} else if (*format == 'f') {
+				dst.concat(va_arg(args, double));
 				continue;
-			}
-			if (*format == 'X') {
-				Serial.print("0x");
-				Serial.print(va_arg(args, int), HEX);
-				if (sendClient) {
-					_pServerClient->print("0x");
-					_pServerClient->print(va_arg(args, int), HEX);
-				}
+			} else if (*format == 'l') {
+				dst.concat(va_arg(args, long));
 				continue;
-			}
-			if (*format == 'b') {
-				Serial.print(va_arg(args, int), BIN);
-				if (sendClient)
-					_pServerClient->print(va_arg(args, int), BIN);
-				continue;
-			}
-			if (*format == 'B') {
-				Serial.print("0b");
-				Serial.print(va_arg(args, int), BIN);
-				if (sendClient) {
-					_pServerClient->print("0b");
-					_pServerClient->print(va_arg(args, int), BIN);
-				}
-				continue;
-			}
-			if (*format == 'l') {
-				Serial.print(va_arg(args, long), DEC);
-				if (sendClient)
-					_pServerClient->print(va_arg(args, long), DEC);
-				continue;
-			}
-
-			if (*format == 'c') {
-				Serial.print(va_arg(args, int));
-				if (sendClient)
-					_pServerClient->print(va_arg(args, int));
-				continue;
-			}
-			if (*format == 't') {
+			} else if (*format == 't') {
 				if (va_arg(
 						args, int) == 1) {
-					Serial.print("T");
-					if (sendClient)
-						_pServerClient->print("T");
+					dst.concat('T');
 				} else {
-					Serial.print("F");
-					if (sendClient)
-						_pServerClient->print("F");
+					dst.concat('F');
 				}
 				continue;
-			}
-			if (*format == 'T') {
-				if (va_arg(args, int) == 1) {
-					Serial.print("true");
-					if (sendClient)
-						_pServerClient->print("true");
+			} else if (*format == 'T') {
+				if (va_arg(
+						args, int) == 1) {
+					dst.concat("true");
 				} else {
-					Serial.print("false");
-					if (sendClient)
-						_pServerClient->print("false");
+					dst.concat("false");
 				}
 				continue;
 			}
 		}
-		Serial.print(*format);
-		if (sendClient)
-			_pServerClient->print(*format);
+		dst.concat(*format);
 	}
-	Serial.println("");
-	if (sendClient)
-		_pServerClient->println("");
 }
 
 void Log::loop() {

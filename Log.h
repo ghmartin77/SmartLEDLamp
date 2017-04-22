@@ -38,6 +38,16 @@ public:
 
 	void loop();
 
+protected:
+	inline void println(String& msg) {
+		boolean sendClient = _logServer && _pServerClient
+				&& _pServerClient->connected();
+
+		Serial.println(msg);
+		if (sendClient)
+			_pServerClient->println(msg);
+	}
+
 private:
 	int _level = LOG_LEVEL_DEBUG;
 	long _baud = 115200L;
@@ -45,8 +55,10 @@ private:
 	WiFiServer *_pServer = NULL;
 	WiFiClient *_pServerClient = NULL;
 
+	String bufferString;
+
 #if LOGLEVEL > 0
-	void print(const char *format, va_list args);
+	void print(const char *format, va_list args, String& dst);
 #endif
 };
 

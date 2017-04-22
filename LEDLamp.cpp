@@ -25,6 +25,9 @@
 #include "DemoReelVisualizer.h"
 #include "VUMeterVisualizer.h"
 #include "NoiseWithPaletteVisualizer.h"
+#include "Runnable.h"
+#include "TurnOnRunnable.h"
+#include "TurnOffRunnable.h"
 
 ESP8266WebServer server(80);
 
@@ -33,6 +36,9 @@ uint8_t socketNumber = 0;
 unsigned long messageNumber;
 
 LEDMatrix matrix(PIN_DATA, PIN_CLOCK, LEDS_WIDTH, LEDS_HEIGHT);
+
+TurnOnRunnable turnOnRunnable(&matrix);
+TurnOffRunnable turnOffRunnable(&matrix);
 
 ArtnetWifi artnet;
 IRrecv irrecv(PIN_RECV_IR);
@@ -47,6 +53,8 @@ VisualizerApp* pVisApp3;
 VisualizerApp* pVisApp4;
 VisualizerApp* pVisApp5;
 
+Runnable* pCurrentRunnable = NULL;
+
 int sensorPin = A0;
 long sensorValue = 0;
 
@@ -54,6 +62,11 @@ long lmillis = 0;
 uint8_t lastButton = 0;
 int r = 255, g = 255, b = 255;
 float brightness = 1.0f;
+
+String lampHostname;
+float calibRed = 1.0f;
+float calibGreen = 1.0f;
+float calibBlue = 1.0f;
 
 float val = 0.0f;
 float maxVal = 0.0f;
@@ -66,6 +79,7 @@ long lastMillis = 0;
 void onButton(uint8_t btn);
 void update();
 void switchApp(App* pApp);
+void writeConfiguration();
 
 long irCodes[] = { 0xff3ac5, 0xffba45, 0xff827d, 0xff02fd, 0xff1ae5, 0xff9a65,
 		0xffa25d, 0xff22dd, 0xff2ad5, 0xffaa55, 0xff926d, 0xff12ed, 0xff0af5,
@@ -95,19 +109,25 @@ void connectToWiFi() {
 	WiFi.begin();
 	ESP.wdtDisable();
 	WiFiManager wifiManager;
-	wifiManager.setDebugOutput(true); // without this WDT restarts ESP
-	wifiManager.autoConnect("SmartLampAP");
+	wifiManager.setDebugOutput(false); // without this WDT restarts ESP
+	wifiManager.autoConnect("SmartLEDLampAP");
 	ESP.wdtEnable(0);
+
+	if (WiFi.isConnected()) {
+		Logger.info("IP: %s", WiFi.localIP().toString().c_str());
+	}
 }
 
 void handleAction() {
 	String act = server.arg("act");
 	if (act.length() != 0) {
 		if (act == "off") {
-			isOn = false;
+			turnOffRunnable.init();
+			pCurrentRunnable = &turnOffRunnable;
 			update();
 		} else if (act == "on") {
-			isOn = true;
+			turnOnRunnable.init();
+			pCurrentRunnable = &turnOnRunnable;
 			update();
 		}
 	}
@@ -140,57 +160,49 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
 
 	switch (type) {
 	case WStype_DISCONNECTED:
-		Serial.printf("[%u] Disconnected!\n", num);
 		break;
 	case WStype_CONNECTED:
-		Serial.printf("[%u] Connected from ", num);
-		Serial.println(webSocket.remoteIP(num));
 		webSocket.sendTXT(num, "Connected");
 		break;
 	case WStype_TEXT:
-		//
-		// Format of message to process
-		// # MESSAGE_NUMBER brightness calibRed calibGreen calibBlue
-		// other formats are ignored
-		//
-		if (payload[0] == '#') {
-			char* token = strtok((char*) &payload[2], " ");
-			messageNumber = (unsigned long) strtol(token, '\0', 10);
-			token = strtok('\0', " ");
-			double brightness = (double) strtod(token, '\0');
-			matrix.setBrightness(brightness);
+		if (payload[0] == '!') {
+			Logger.debug("Received RPC '%s'", &payload[1]);
 
-			token = strtok('\0', " ");
-			double calibrationRed = (double) strtod(token, '\0');
-			token = strtok('\0', " ");
-			double calibrationGreen = (double) strtod(token, '\0');
-			token = strtok('\0', " ");
-			double calibrationBlue = (double) strtod(token, '\0');
+			char* token = strtok((char*) &payload[1], " ");
 
-			matrix.setCalibration(calibrationRed, calibrationGreen,
-					calibrationBlue);
+			if (strcmp("setCalibration", token) == 0) {
+				token = strtok(NULL, " ");
+				double red = strtod(token, NULL);
+				token = strtok(NULL, " ");
+				double green = strtod(token, NULL);
+				token = strtok(NULL, " ");
+				double blue = strtod(token, NULL);
 
-			matrix.update();
-		} else if (payload[0] == '!') {
-			char* token = strtok((char*) &payload[2], " ");
-			uint8_t red = (unsigned long) strtol(token, '\0', 10);
-			token = strtok('\0', " ");
-			uint8_t green = (unsigned long) strtol(token, '\0', 10);
-			token = strtok('\0', " ");
-			uint8_t blue = (unsigned long) strtol(token, '\0', 10);
+				calibRed = red;
+				calibGreen = green;
+				calibBlue = blue;
 
-			r = red;
-			g = green;
-			b = blue;
-			switchApp(NULL);
+				Logger.debug("Calibrating to %f, %f, %f", red, green, blue);
+				matrix.setCalibration(calibRed, calibGreen, calibBlue);
+			} else if (strcmp("setHostname", token) == 0) {
+				token = strtok(NULL, " ");
+				lampHostname = token;
+				if (lampHostname.length() > 31)
+					lampHostname = lampHostname.substring(0, 31);
+				lampHostname.trim();
+
+				Logger.debug("Setting hostname to %s", lampHostname.c_str());
+			} else if (strcmp("saveConfiguration", token) == 0) {
+				writeConfiguration();
+				Logger.debug("Configuration saved");
+			} else if (strcmp("getConfiguration", token) == 0) {
+				String ret = "<getConfiguration " + lampHostname + " " + calibRed + " "
+						+ calibGreen + " " + calibBlue;
+				webSocket.sendTXT(num, ret.c_str());
+			}
 
 			update();
-		} else {
-			Serial.printf("[%u] get Text: %s\n", num, payload);
 		}
-		break;
-	default:
-		Serial.println("Case?");
 		break;
 	}
 }
@@ -201,24 +213,18 @@ void startWebServer() {
 
 	server.serveStatic("/", SPIFFS, "/", "no-cache");
 
-	Serial.println("HTTP server started");
+	Logger.info("HTTP server started");
 
 	webSocket.onEvent(webSocketEvent);
 	webSocket.begin();
 
-	Serial.println("WebSocket server started");
+	Logger.info("WebSocket server started");
 }
 
 void setupOTA() {
 	ArduinoOTA.setPort(8266);
-	ArduinoOTA.setHostname("LEDLampESP8266");
+	ArduinoOTA.setHostname(lampHostname ? lampHostname.c_str() : "LEDLamp");
 
-	ArduinoOTA.onStart([]() {
-		Serial.println("Start");
-	});
-	ArduinoOTA.onEnd([]() {
-		Serial.println("\nEnd");
-	});
 	ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
 		Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
 	});
@@ -251,24 +257,89 @@ void switchApp(App* pApp) {
 	}
 
 	pCurrentApp = pApp;
+
+	if (pCurrentApp) {
+		update();
+	}
+}
+
+void readConfiguration() {
+	char host[15];
+	sprintf(host, "LEDLamp-%06x", ESP.getChipId());
+	lampHostname = host;
+
+	File configFile = SPIFFS.open("/config.json", "r");
+	if (!configFile) {
+		Logger.info("No config file found, using defaults");
+		return;
+	}
+
+	size_t size = configFile.size();
+	if (size > 1024) {
+		Logger.error("Config file size is too large");
+		return;
+	}
+
+	std::unique_ptr<char[]> buf(new char[size]);
+	configFile.readBytes(buf.get(), size);
+
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& json = jsonBuffer.parseObject(buf.get());
+
+	if (!json.success()) {
+		Logger.error("Failed to parse config file");
+		return;
+	}
+
+	lampHostname = json["hostname"].asString();
+	calibRed = json["calibration"]["red"];
+	calibGreen = json["calibration"]["green"];
+	calibBlue = json["calibration"]["blue"];
+
+	configFile.close();
+}
+
+void writeConfiguration() {
+	File configFile = SPIFFS.open("/config.json", "w");
+
+	StaticJsonBuffer<200> jsonBuffer;
+	JsonObject& root = jsonBuffer.createObject();
+	if (lampHostname)
+		root["hostname"] = lampHostname;
+
+	root.createNestedObject("calibration");
+	root["calibration"]["red"] = calibRed;
+	root["calibration"]["green"] = calibGreen;
+	root["calibration"]["blue"] = calibBlue;
+
+	root.prettyPrintTo(configFile);
+
+	configFile.close();
 }
 
 void setup() {
 	delay(1000);
 
 	Logger.begin();
-	Logger.info("\n\n\n\n\rStarting LED Lamp");
+	Serial.println("\n\n\n\n");
+	Logger.info("Starting Smart LED Lamp");
 	Logger.info("Free Sketch Space: %i", ESP.getFreeSketchSpace());
 
 	// Turn off blue status LED
-	digitalWrite(D4, LOW);
+	pinMode(BUILTIN_LED, OUTPUT);
+	digitalWrite(BUILTIN_LED, HIGH);
 
 	SPIFFS.begin();
 
 	matrix.init();
 	matrix.clear();
+
+	readConfiguration();
+
+	matrix.setCalibration(calibRed, calibGreen, calibBlue);
+
 	//matrix.setCalibration(1.0f, 0.88f, 0.46f);
-	matrix.setCalibration(0.62f, 1.0f, 0.76f);
+	//matrix.setCalibration(0.62f, 1.0f, 0.76f);
 
 	wifi_set_sleep_type(NONE_SLEEP_T);// see https://github.com/esp8266/Arduino/issues/2070
 
@@ -301,10 +372,6 @@ void setup() {
 
 	switchApp(NULL);
 
-//	matrix.setBrightness(0.1f);
-//	switchApp(pVisApp1);
-//	isOn = true;
-
 	irrecv.enableIRIn(); // Start the receiver
 
 	update();
@@ -329,7 +396,13 @@ void onButton(uint8_t btn) {
 	Logger.debug("Button '%i' pressed", btn);
 
 	if (btn == BTN_POWER) {
-		isOn = !isOn;
+		if (!isOn) {
+			turnOnRunnable.init();
+			pCurrentRunnable = &turnOnRunnable;
+		} else {
+			turnOffRunnable.init();
+			pCurrentRunnable = &turnOffRunnable;
+		}
 		update();
 		delay(200);
 	}
@@ -597,6 +670,11 @@ void loop() {
 	webSocket.loop();
 	Logger.loop();
 
+	if (pCurrentRunnable) {
+		pCurrentRunnable->run();
+		update();
+	}
+
 	if (isOn && isPlaying) {
 		if (pCurrentApp) {
 			pCurrentApp->run();
@@ -606,7 +684,6 @@ void loop() {
 	}
 
 	decode_results results;
-	uint8_t button = 0;
 
 	if (currentMillis > lmillis + 200) {
 		lastButton = 0;
@@ -619,8 +696,7 @@ void loop() {
 
 			for (int i = 0; i < sizeof(irCodes) / sizeof(irCodes[0]); ++i) {
 				if (irCodes[i] == results.value) {
-					button = i + 1;
-					lastButton = button;
+					lastButton = i + 1;
 					lmillis = currentMillis;
 					break;
 				}

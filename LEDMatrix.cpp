@@ -76,10 +76,17 @@ void LEDMatrix::update() {
 		}
 	} else { // ROTATION_0
 		for (uint16_t idx = 0; idx < noPixels * 3; idx = idx + 3) {
-			matrix.setPixelColor(height - 1 - y, x,
-					pixels[idx] * calibrationRedEffectively,
-					pixels[idx + 1] * calibrationGreenEffectively,
-					pixels[idx + 2] * calibrationBlueEffectively);
+
+			int16_t currentY = height - 1 - y - yOffset;
+
+			if (currentY >= 0) {
+				matrix.setPixelColor(currentY, x,
+						pixels[idx] * calibrationRedEffectively,
+						pixels[idx + 1] * calibrationGreenEffectively,
+						pixels[idx + 2] * calibrationBlueEffectively);
+			} else {
+				matrix.setPixelColor(currentY + height, x, 0, 0, 0);
+			}
 			if (++x >= width) {
 				++y;
 				x = 0;

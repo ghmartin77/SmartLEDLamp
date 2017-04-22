@@ -37,12 +37,24 @@ public:
 		return height;
 	}
 
+	inline void setYOffset(uint8_t offset) {
+		if (offset > height) {
+			offset = height;
+		}
+		yOffset = offset;
+	}
+
+	inline uint8_t getYOffset() {
+		return yOffset;
+	}
+
 private:
 	Adafruit_WS2801 matrix;
 
 	uint8_t *pixels;
 	uint8_t width;
 	uint8_t height;
+	uint8_t yOffset = 0;
 	uint8_t noPixels;
 
 	Rotation rotation = ROTATION_0;
