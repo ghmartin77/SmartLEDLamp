@@ -34,7 +34,7 @@ Animation example (fire)
 
 
 # Ingredients
-* Ikea Vidja
+* IKEA Vidja
 * ESP8266
 * 5m WS2801 (160 LEDs)
 * Power Supply 5V, 10A
