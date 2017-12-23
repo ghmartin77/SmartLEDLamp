@@ -121,11 +121,11 @@ void connectToWiFi() {
 void handleAction() {
 	String act = server.arg("act");
 	if (act.length() != 0) {
-		if (act == "off") {
+		if (act == "off" && isOn) {
 			turnOffRunnable.init();
 			pCurrentRunnable = &turnOffRunnable;
 			update();
-		} else if (act == "on") {
+		} else if (act == "on" && !isOn) {
 			turnOnRunnable.init();
 			pCurrentRunnable = &turnOnRunnable;
 			update();
