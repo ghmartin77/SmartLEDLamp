@@ -1,0 +1,54 @@
+From 1ccf2f5645d8499aa555d00933ffa6165c76a3f6 Mon Sep 17 00:00:00 2001
+From: ghmartin77
+Date: Sat, 23 Dec 2017 21:28:26 +0100
+Subject: [PATCH] Add HeatColors Blue & Green
+
+---
+ colorpalettes.cpp | 16 ++++++++++++++++
+ colorpalettes.h   |  3 +++
+ 2 files changed, 19 insertions(+)
+
+diff --git a/colorpalettes.cpp b/colorpalettes.cpp
+index 3c3a1f5..c0a7905 100644
+--- a/colorpalettes.cpp
++++ b/colorpalettes.cpp
+@@ -154,6 +154,22 @@ extern const TProgmemRGBPalette16 HeatColors_p FL_PROGMEM =
+     0xFFFF33, 0xFFFF66, 0xFFFF99, 0xFFFFCC, 0xFFFFFF
+ };
+ 
++extern const TProgmemRGBPalette16 HeatColorsBlue_p FL_PROGMEM =
++{
++    0x000000,
++    0x000033, 0x000066, 0x000099, 0x0000cc, 0x0000ff,
++    0x0033FF, 0x0066FF, 0x0099FF, 0x00CCFF, 0x00FFFF,
++    0x33FFFF, 0x66FFFF, 0x99FFFF, 0xccFFFF, 0xFFFFFF
++};
++
++extern const TProgmemRGBPalette16 HeatColorsGreen_p FL_PROGMEM =
++{
++    0x000000,
++    0x003300, 0x006600, 0x009900, 0x00CC00, 0x00FF00,
++    0x00FF33, 0x00FF66, 0x00FF99, 0x00FFCC, 0x00FFFF,
++    0x33FFFF, 0x66FFFF, 0x99FFFF, 0xccFFFF, 0xFFFFFF
++};
++
+ 
+ // Gradient palette "Rainbow_gp",
+ // provided for situations where you're going
+diff --git a/colorpalettes.h b/colorpalettes.h
+index 4458575..db6e5bb 100644
+--- a/colorpalettes.h
++++ b/colorpalettes.h
+@@ -48,6 +48,9 @@ extern const TProgmemRGBPalette16 PartyColors_p FL_PROGMEM;
+ /// which looks wrong.
+ extern const TProgmemRGBPalette16 HeatColors_p FL_PROGMEM;
+ 
++extern const TProgmemRGBPalette16 HeatColorsBlue_p FL_PROGMEM;
++extern const TProgmemRGBPalette16 HeatColorsGreen_p FL_PROGMEM;
++
+ 
+ DECLARE_GRADIENT_PALETTE( Rainbow_gp);
+ 
+-- 
+2.10.1.windows.1
+
