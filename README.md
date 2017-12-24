@@ -92,20 +92,21 @@ Animation example (fire)
   * Most buttons are self-explaining. Here's just the special stuff:
     * 3rd button in the first row allows to start and stop animations
     * JUMP3 - Rainbow animation - Try QUICK/SLOW and the blue up/down arrows
-    * JUMP7 - Fire animation and more - Try QUICK/SLOW, different up/down arrows, DIYx, AUTO and FLASH
-    * FADE3 - Several FastLED animations - Try QUICK/SLOW, different up/down arrows, DIYx, AUTO and FLASH
+    * JUMP7 - Fire animation - Try QUICK/SLOW, different up/down arrows (fire parameters), DIY1-6/AUTO (choose color palette)
+    * FLUSH - FastLED noise animation - Try QUICK/SLOW, blue up/down arrows (scale), red up/down arrows (choose color palette) 
+    * FADE3 - FastLED DemoReel animations - Try red up/down arrows
     * FADE7 - VU Meter - commented out in the code. You can run a microphone or line in on A0 of the ESP8266 to drive the VU Meter. You'll have to poke around with the code to make this work. Look for `readAnalogPeek` and the code calling it in `loop` in LEDLamp.cpp.
 * Remote logging is available via port 8888. You could use PuTTY to connect to your lamp's IP, port 8888 using connection type raw and you will receive logging output like key presses and so on.
 
 # Home Automation Integration
-* The following web API is available to integrate the SmartLEDLamp into OpenHAB for example:
-  ```
-  http://<IP>/action/?act=on - Turn the lamp on
-  http://<IP>/action/?act=off - Turn the lamp off
+The following web API is available to integrate the SmartLEDLamp into OpenHAB for example:
+```
+http://<IP>/action/?act=on - Turn the lamp on
+http://<IP>/action/?act=off - Turn the lamp off
 
-  http://<IP>/action/?btn=1 - Simulate press button 1
-  http://<IP>/action/?btn=17 - Simulate press button 17
+http://<IP>/action/?btn=1 - Simulate press button 1
+http://<IP>/action/?btn=17 - Simulate press button 17
 
-  http://<IP>/action/?brightness=17 - set brightness to 17%
-  http://<IP>/action/?brightness=100 - set brightness to 100%
-  ```
+http://<IP>/action/?brightness=17 - set brightness to 17%
+http://<IP>/action/?brightness=100 - set brightness to 100%
+```
