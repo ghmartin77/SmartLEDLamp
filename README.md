@@ -87,8 +87,8 @@ Animation example (fire)
 * Restart ESP8266
 
 # Usage
-* More often than not LED stripes won't be plain white when R, G and B are fully powered, thus you may want to calibrate your stripes. Go to http://&le;IP&ge;/config.html to apply and save your calibration (Tip: this is done most easily turning on the lamp with fully brightness and white color.)
-* You can access a web remote control page at http://&le;IP&ge;/control.html to access a web control page showing the remote (please also refer to [data/rc.jpg](data/rc.jpg)) 
+* More often than not LED stripes won't be plain white when R, G and B are fully powered, thus you may want to calibrate your stripes. Go to http://&lt;IP&gt;/config.html to apply and save your calibration (Tip: this is done most easily turning on the lamp with fully brightness and white color.)
+* You can access a web remote control page at http://&lt;IP&gt;/control.html to access a web control page showing the remote (please also refer to [data/rc.jpg](data/rc.jpg)) 
   * Most buttons are self-explaining. Here's just the special stuff:
     * 3rd button in the first row allows to start and stop animations
     * JUMP3 - Rainbow animation - Try QUICK/SLOW and the blue up/down arrows
