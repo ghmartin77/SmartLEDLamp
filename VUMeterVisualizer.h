@@ -35,8 +35,7 @@ private:
 			CRGB::Green, CRGB::Yellow, CRGB::Yellow, CRGB::Yellow,
 
 			CRGB::Yellow, CRGB::Red, CRGB::Red, CRGB::Red };
-	CRGBPalette16 palette[8] = { CRGBPalette16(HeatColors_p), CRGBPalette16(
-			HeatColorsGreen_p), CRGBPalette16(HeatColorsBlue_p), CRGBPalette16(
+	CRGBPalette16 palette[6] = { CRGBPalette16(HeatColors_p), CRGBPalette16(
 			PartyColors_p), CRGBPalette16(CloudColors_p), CRGBPalette16(
 			LavaColors_p), CRGBPalette16(VUMeter_p), CRGBPalette16(
 			OceanColors_p) };

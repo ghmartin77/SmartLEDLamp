@@ -2,10 +2,12 @@
 #define FIREVISUALIZER_H_
 
 #define FASTLED_INTERNAL
-
-#include "Visualizer.h"
 #include "FastLED.h"
+#include "Visualizer.h"
 #include "defines.h"
+
+extern const TProgmemRGBPalette16 HeatColorsBlue_p FL_PROGMEM;
+extern const TProgmemRGBPalette16 HeatColorsGreen_p FL_PROGMEM;
 
 class FireVisualizer: public Visualizer {
 public:

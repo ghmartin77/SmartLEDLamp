@@ -133,14 +133,6 @@ boolean VUMeterVisualizer::onButtonPressed(uint8_t button) {
 		paletteNo = 5;
 		handled = true;
 		break;
-	case 39:
-		paletteNo = 6;
-		handled = true;
-		break;
-	case 40:
-		paletteNo = 7;
-		handled = true;
-		break;
 	}
 
 	return handled;

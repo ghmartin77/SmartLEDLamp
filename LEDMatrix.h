@@ -1,19 +1,12 @@
 #ifndef LEDMATRIX_H_
 #define LEDMATRIX_H_
 
-#include "Adafruit_WS2801.h"
-
-#define MATRIX_RGB_FORMAT WS2801_RBG
-
-#include <Adafruit_WS2801.h>
+#define FASTLED_INTERNAL
+#include "FastLED.h"
 
 class LEDMatrix {
 public:
-	enum Rotation {
-		ROTATION_0, ROTATION_180
-	};
-
-	LEDMatrix(uint8_t dpin, uint8_t cpin, uint8_t aWidth, uint8_t aHeight);
+	LEDMatrix(uint8_t aWidth, uint8_t aHeight);
 	virtual ~LEDMatrix();
 
 	void init();
@@ -26,7 +19,6 @@ public:
 
 	void flip();
 
-	void setRotation(Rotation rot);
 	void setCalibration(float r, float g, float b);
 	void setBrightness(float percentage);
 
@@ -48,21 +40,33 @@ public:
 		return yOffset;
 	}
 
-private:
-	Adafruit_WS2801 matrix;
+	inline uint16_t xy2idx(uint8_t x, uint8_t y) {
+		uint16_t idx;
 
-	uint8_t *pixels;
+		if (serpentineLayout && !(x & 1)) {
+			idx = (x * height) + (height - 1) - y;
+		} else {
+			idx = (x * height) + y;
+		}
+
+		return idx;
+	}
+
+private:
+	CRGB* pLEDs;
+
+	CRGB* pPixels;
 	uint8_t width;
 	uint8_t height;
 	uint8_t yOffset = 0;
 	uint8_t noPixels;
 
-	Rotation rotation = ROTATION_0;
-
 	float calibrationRed = 1.0f;
 	float calibrationGreen = 1.0f;
 	float calibrationBlue = 1.0f;
 	float brightness = 1.0f;
+
+	bool serpentineLayout = true;
 };
 
 #endif /* LEDMATRIX_H_ */

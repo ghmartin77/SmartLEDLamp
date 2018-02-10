@@ -35,7 +35,7 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 uint8_t socketNumber = 0;
 unsigned long messageNumber;
 
-LEDMatrix matrix(PIN_DATA, PIN_CLOCK, LEDS_WIDTH, LEDS_HEIGHT);
+LEDMatrix matrix(LEDS_WIDTH, LEDS_HEIGHT);
 
 TurnOnRunnable turnOnRunnable(&matrix);
 TurnOffRunnable turnOffRunnable(&matrix);
@@ -106,6 +106,8 @@ void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence,
 }
 
 void connectToWiFi() {
+	WiFi.hostname(lampHostname);
+	WiFi.mode(WIFI_STA);
 	WiFi.begin();
 	ESP.wdtDisable();
 	WiFiManager wifiManager;
@@ -196,8 +198,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
 				writeConfiguration();
 				Logger.debug("Configuration saved");
 			} else if (strcmp("getConfiguration", token) == 0) {
-				String ret = "<getConfiguration " + lampHostname + " " + calibRed + " "
-						+ calibGreen + " " + calibBlue;
+				String ret = "<getConfiguration " + lampHostname + " "
+						+ calibRed + " " + calibGreen + " " + calibBlue;
 				webSocket.sendTXT(num, ret.c_str());
 			}
 
@@ -223,7 +225,7 @@ void startWebServer() {
 
 void setupOTA() {
 	ArduinoOTA.setPort(8266);
-	ArduinoOTA.setHostname(lampHostname ? lampHostname.c_str() : "LEDLamp");
+	ArduinoOTA.setHostname(lampHostname.c_str());
 
 	ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
 		Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
@@ -264,10 +266,6 @@ void switchApp(App* pApp) {
 }
 
 void readConfiguration() {
-	char host[15];
-	sprintf(host, "LEDLamp-%06x", ESP.getChipId());
-	lampHostname = host;
-
 	File configFile = SPIFFS.open("/config.json", "r");
 	if (!configFile) {
 		Logger.info("No config file found, using defaults");
@@ -292,6 +290,16 @@ void readConfiguration() {
 	}
 
 	lampHostname = json["hostname"].asString();
+
+	if (!lampHostname || !lampHostname.length()) {
+		char host[15];
+		sprintf(host, "LEDLamp-%06x", ESP.getChipId());
+		lampHostname = host;
+		Logger.info("No hostname set, defaulting to %s", lampHostname.c_str());
+	} else {
+		Logger.info("Hostname is %s", lampHostname.c_str());
+	}
+
 	calibRed = json["calibration"]["red"];
 	calibGreen = json["calibration"]["green"];
 	calibBlue = json["calibration"]["blue"];
@@ -318,16 +326,16 @@ void writeConfiguration() {
 }
 
 void setup() {
-	delay(1000);
+	// Turn off blue status LED
+	pinMode(BUILTIN_LED, OUTPUT);
+	digitalWrite(BUILTIN_LED, HIGH);
+
+	delay(300);
 
 	Logger.begin();
 	Serial.println("\n\n\n\n");
 	Logger.info("Starting Smart LED Lamp");
 	Logger.info("Free Sketch Space: %i", ESP.getFreeSketchSpace());
-
-	// Turn off blue status LED
-	pinMode(BUILTIN_LED, OUTPUT);
-	digitalWrite(BUILTIN_LED, HIGH);
 
 	SPIFFS.begin();
 
@@ -337,11 +345,6 @@ void setup() {
 	readConfiguration();
 
 	matrix.setCalibration(calibRed, calibGreen, calibBlue);
-
-	//matrix.setCalibration(1.0f, 0.88f, 0.46f);
-	//matrix.setCalibration(0.62f, 1.0f, 0.76f);
-
-	wifi_set_sleep_type(NONE_SLEEP_T);// see https://github.com/esp8266/Arduino/issues/2070
 
 	connectToWiFi();
 	setupOTA();
@@ -404,7 +407,6 @@ void onButton(uint8_t btn) {
 			pCurrentRunnable = &turnOffRunnable;
 		}
 		update();
-		delay(200);
 	}
 
 	if (!isOn) {
@@ -690,10 +692,9 @@ void loop() {
 	}
 
 	if (irrecv.decode(&results)) {
-		if (results.value == 0xffffffff) {
+		if (results.value == 0xffffffff && lastButton != BTN_POWER) {
 			lmillis = currentMillis;
 		} else if ((results.value & 0xff000000) == 0) {
-
 			for (int i = 0; i < sizeof(irCodes) / sizeof(irCodes[0]); ++i) {
 				if (irCodes[i] == results.value) {
 					lastButton = i + 1;
@@ -701,7 +702,6 @@ void loop() {
 					break;
 				}
 			}
-
 		}
 		if (lastButton)
 			onButton(lastButton);

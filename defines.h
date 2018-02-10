@@ -11,6 +11,9 @@
 #define PIN_CLOCK D1
 #define PIN_DATA D2
 
+#define STRIP_RGB_ORDER RBG
+#define STRIP_CHIPSET WS2801
+
 #define BTN_BRIGHTER 1
 #define BTN_DARKER 2
 #define BTN_PAUSE 3
