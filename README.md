@@ -53,10 +53,9 @@ Animation example (fire)
     * Hash
     * SPI
   * 3rd party:
-    * Adafruit WS 2801 Library - https://github.com/adafruit/Adafruit-WS2801-Library + **patch AdafruitWS2801-Add-further-WS2801-types-RBG-and-BGR.patch in folder patches**
     * ArduinoJson - https://github.com/bblanchon/ArduinoJson
     * ArtnetWifi - https://github.com/rstephan/ArtnetWifi (to use http://www.solderlab.de/index.php/software/glediator for example)
-    * FastLED - https://github.com/FastLED/FastLED + **patch FastLED-Add-HeatColors-Blue-Green.patch in folder patches**
+    * FastLED - https://github.com/FastLED/FastLED
     * IRemoteESP8266 - https://github.com/sebastienwarin/IRremoteESP8266
     * WebSockets - https://github.com/Links2004/arduinoWebSockets
     * WiFiManager - https://github.com/tzapu/WiFiManager
