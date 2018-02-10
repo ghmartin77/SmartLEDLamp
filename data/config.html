@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>SmartLEDLamp</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+<h1>Smart LED Lamp - Configuration</h1>
+
+<table border=0>
+<tr>
+	<td colspan="2"><b>General</b></td>
+</tr>
+<tr>
+	<td style="width:100px">Hostname</td><td><input id="hostName" type="text" style="width:100%"/></td>
+</tr>
+<tr>
+	<td colspan="2">&nbsp;</td>
+</tr>
+<tr>
+	<td colspan="2"><b>Calibration</b></td>
+</tr>
+<tr>
+	<td>Red</td><td><input id="sliderRed" value="100" type="range" min="0" max="100" step="1" style="width: 300px" onchange="changeCalibration()" /></td>
+</tr>
+<tr>
+	<td>Green</td><td><input id="sliderGreen" value="100" type="range" min="0" max="100" step="1" style="width: 300px" onchange="changeCalibration()" /></td>
+</tr>
+<tr>
+	<td>Blue</td><td><input id="sliderBlue" value="100" type="range" min="0" max="100" step="1" style="width: 300px" onchange="changeCalibration()" /></td>
+</tr>
+</table>
+<br>	
+<input type="button" value="Save Configuration" onclick="save()" />
+
+
+<script type="text/javascript">
+var sliderRed = document.getElementById('sliderRed');
+var sliderGreen = document.getElementById('sliderGreen');
+var sliderBlue = document.getElementById('sliderBlue');
+
+var connection;
+var hostName = document.getElementById('hostName');
+
+var pingCounter = 0;
+var sendPingVar;
+var dateObject;
+
+var server = "ws://" + location.host + ":81";
+
+connect(server);
+connection.send("!getConfiguration ");
+
+function connect(host)
+{
+	if (connection)
+	{
+		connection.close();
+	}
+
+	connection = new WebSocket(host, ['arduino']);
+
+	connection.onopen = function()
+	{
+		connection.send(new Date());
+		sendPingVar = setInterval(function(){ sendPing() }, 60000);
+	};
+
+	connection.onclose = function(event)
+	{
+		clearInterval(sendPingVar);
+		connection.removeAllListeners();
+		connection = null;
+	};
+
+	connection.onerror = function(error)
+	{
+		console.log("WebSocket Error ", error);
+	};
+
+	connection.onmessage = function(message)
+	{
+		var fields = message.data.split(" ");
+		
+		if (fields[0] == "<")
+		{
+			
+		}
+	};
+}
+
+function disconnect()
+{
+	if (connection)
+	{
+		connection.close();
+	}
+}
+
+function sendPing()
+{
+	connection.send('ping');
+	pingCounter++;
+}
+
+function changeCalibration()
+{
+	calibRed = parseInt(sliderRed.value);
+	calibGreen = parseInt(sliderGreen.value);
+	calibBlue = parseInt(sliderBlue.value);
+
+	connection.send("!setCalibration " + calibRed/100.0 + " " + calibGreen/100.0 + " " + calibBlue/100.0);	
+}
+
+function save()
+{
+	connection.send("!setHostname " + hostName.value);	
+	connection.send("!saveConfiguration");	
+	connection.send("!getConfiguration ");
+}
+</script>
+</body>
+</html>
