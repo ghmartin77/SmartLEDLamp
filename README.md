@@ -32,6 +32,8 @@ Animation example (fire)
 
 ![Step 9](assets/makingof09.png)
 
+![PCB](PCB/LEDLamp_pcb.png)
+
 
 # Ingredients
 * IKEA Vidja
