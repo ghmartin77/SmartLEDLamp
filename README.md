@@ -85,6 +85,7 @@ Animation example (fire)
   espota.py -i <IP> -s -f spiffs-image.bin
   ```
   Don't worry if the latter comes back with an error after upload.
+* Alternatively you can use [ArduinoIDE Plugin for SPIFFS upload](https://github.com/esp8266/arduino-esp8266fs-plugin).
 * Restart ESP8266
 
 # Usage
