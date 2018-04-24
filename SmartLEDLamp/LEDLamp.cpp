@@ -9,13 +9,15 @@
 #include <pins_arduino.h>
 #include <cstdint>
 #include <ArduinoOTA.h>
+#include "defines.h"
+#ifdef IR_ENABLE
 #include <IRremoteESP8266.h>
+#endif
 #include <FS.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <WebSocketsServer.h>
 
-#include "defines.h"
 #include "Log.h"
 #include "LEDMatrix.h"
 #include "App.h"
@@ -41,7 +43,18 @@ TurnOnRunnable turnOnRunnable(&matrix);
 TurnOffRunnable turnOffRunnable(&matrix);
 
 ArtnetWifi artnet;
+
+#ifdef IR_ENABLE
 IRrecv irrecv(PIN_RECV_IR);
+
+long irCodes[] = { 0xff3ac5, 0xffba45, 0xff827d, 0xff02fd, 0xff1ae5, 0xff9a65,
+		0xffa25d, 0xff22dd, 0xff2ad5, 0xffaa55, 0xff926d, 0xff12ed, 0xff0af5,
+		0xff8a75, 0xffb24d, 0xff32cd, 0xff38c7, 0xffb847, 0xff7887, 0xfff807,
+		0xff18e7, 0xff9867, 0xff58a7, 0xffd827, 0xff28d7, 0xffa857, 0xff6897,
+		0xffe817, 0xff08f7, 0xff8877, 0xff48b7, 0xffc837, 0xff30cf, 0xffb04f,
+		0xff708f, 0xfff00f, 0xff10ef, 0xff906f, 0xff50af, 0xffd02f, 0xff20df,
+		0xffa05f, 0xff609f, 0xffe01f };
+#endif
 
 boolean isOn = false;
 boolean isPlaying = true;
@@ -80,14 +93,6 @@ void onButton(uint8_t btn);
 void update();
 void switchApp(App* pApp);
 void writeConfiguration();
-
-long irCodes[] = { 0xff3ac5, 0xffba45, 0xff827d, 0xff02fd, 0xff1ae5, 0xff9a65,
-		0xffa25d, 0xff22dd, 0xff2ad5, 0xffaa55, 0xff926d, 0xff12ed, 0xff0af5,
-		0xff8a75, 0xffb24d, 0xff32cd, 0xff38c7, 0xffb847, 0xff7887, 0xfff807,
-		0xff18e7, 0xff9867, 0xff58a7, 0xffd827, 0xff28d7, 0xffa857, 0xff6897,
-		0xffe817, 0xff08f7, 0xff8877, 0xff48b7, 0xffc837, 0xff30cf, 0xffb04f,
-		0xff708f, 0xfff00f, 0xff10ef, 0xff906f, 0xff50af, 0xffd02f, 0xff20df,
-		0xffa05f, 0xff609f, 0xffe01f };
 
 void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence,
 		uint8_t* data) {
@@ -375,7 +380,9 @@ void setup() {
 
 	switchApp(NULL);
 
+#ifdef IR_ENABLE
 	irrecv.enableIRIn(); // Start the receiver
+#endif
 
 	update();
 
@@ -685,6 +692,7 @@ void loop() {
 		}
 	}
 
+#ifdef IR_ENABLE
 	decode_results results;
 
 	if (currentMillis > lmillis + 200) {
@@ -707,4 +715,5 @@ void loop() {
 			onButton(lastButton);
 		irrecv.resume(); // Receive the next value
 	}
+#endif
 }

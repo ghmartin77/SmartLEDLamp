@@ -1,12 +1,17 @@
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
+// Comment next line to disable IR code if you don't use an IR receiver
+#define IR_ENABLE
+
 #define UDP_PORT 6789
 
 #define LEDS_WIDTH 4
 #define LEDS_HEIGHT 40
 
+#ifdef IR_ENABLE
 #define PIN_RECV_IR D3
+#endif
 
 #define PIN_CLOCK D1
 #define PIN_DATA D2
