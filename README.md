@@ -49,18 +49,19 @@ Animation example (fire)
   * From Arduino core for ESP8266:
     * ArduinoOTA
     * DNSServer
+    * EEPROM
     * ESP8266mDNS
     * ESP8266WebServer
     * ESP8266WiFi
     * Hash
-    * SPI
   * 3rd party:
     * ArduinoJson - https://github.com/bblanchon/ArduinoJson
-    * ArtnetWifi - https://github.com/rstephan/ArtnetWifi (to use http://www.solderlab.de/index.php/software/glediator for example)
     * FastLED - https://github.com/FastLED/FastLED
     * WebSockets - https://github.com/Links2004/arduinoWebSockets
     * WiFiManager - https://github.com/tzapu/WiFiManager
+    * ArtnetWifi (optional, check for ARTNET_ENABLE in defines.h to activate) - https://github.com/rstephan/ArtnetWifi (to use http://www.solderlab.de/index.php/software/glediator for example)
     * IRremoteESP8266 (optional, only if you want to use an IR receiver; if not, check for IR_ENABLE in defines.h to switch it off) - https://github.com/sebastienwarin/IRremoteESP8266
+    * PubSubClient (optional, check for MQTT_ENABLE in defines.h to activate) - https://github.com/knolleary/pubsubclient
     
 * Compile & upload
 
@@ -70,7 +71,7 @@ Animation example (fire)
 * Configure WiFi by supplying WiFi name plus password, save, wait a minute and restart the ESP8266.
 * If connect data was right, ESP8266 is now accessible from your local network. IP is shown in the console as logging output:
   ```
-  Info: Starting Smart LED Lamp
+  Info: Starting Smart LED Lamp 0.2
   Info: Free Sketch Space: 622592
   Info: No config file found, using defaults
   Info: IP: 192.168.0.110
@@ -113,3 +114,5 @@ http://<IP>/action/?btn=17 - Simulate press button 17
 http://<IP>/action/?brightness=17 - set brightness to 17%
 http://<IP>/action/?brightness=100 - set brightness to 100%
 ```
+Additionally you can use MQTT (see above on how to enable, configure MQTT_SERVER and MQTT_TOPIC in defines.h appropriately).
+Message of "0" sent to the topic turns the lamp off, a message of "1" turns it on. Furthermore same topic is reflecting the state if lamp is turned on or off via web interface or IR.
