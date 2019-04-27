@@ -1,8 +1,18 @@
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
-// Comment next line to disable IR code if you don't use an IR receiver
-#define IR_ENABLE
+#define VERSION "0.2"
+
+// Uncomment next line to enable IR code if you don't use an IR receiver
+// #define IR_ENABLE
+
+// Uncomment next line to enable Art-Net support
+// #define ARTNET_ENABLE
+
+// Uncomment next line to enable MQTT support
+// #define MQTT_ENABLE
+#define MQTT_SERVER "your.mqtt.broker.ip"
+#define MQTT_TOPIC  "your/mqtt/status/topic"
 
 #define UDP_PORT 6789
 

@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ArtnetWifi.h>
 #include <Esp.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
@@ -9,10 +8,13 @@
 #include <pins_arduino.h>
 #include <cstdint>
 #include <ArduinoOTA.h>
+#include <EEPROM.h>
 #include "defines.h"
 #ifdef IR_ENABLE
 #include <IRremoteESP8266.h>
-#endif
+#include <IRrecv.h>
+#include <IRutils.h>
+#endif // IR_ENABLE
 #include <FS.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
@@ -31,18 +33,31 @@
 #include "TurnOnRunnable.h"
 #include "TurnOffRunnable.h"
 
+#ifdef MQTT_ENABLE
+#include <PubSubClient.h>
+
+WiFiClient mqttWiFiClient;
+PubSubClient mqttClient(mqttWiFiClient);
+#endif // MQTT_ENABLE
+
+#ifdef ARTNET_ENABLE
+#include <ArtnetWifi.h>
+
+ArtnetWifi artnet;
+#endif // ARTNET_ENABLE
+
 ESP8266WebServer server(80);
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 uint8_t socketNumber = 0;
 unsigned long messageNumber;
 
+long lastMatrixRefreshMs = 0;
+
 LEDMatrix matrix(LEDS_WIDTH, LEDS_HEIGHT);
 
 TurnOnRunnable turnOnRunnable(&matrix);
 TurnOffRunnable turnOffRunnable(&matrix);
-
-ArtnetWifi artnet;
 
 #ifdef IR_ENABLE
 IRrecv irrecv(PIN_RECV_IR);
@@ -75,6 +90,7 @@ long lmillis = 0;
 uint8_t lastButton = 0;
 int r = 255, g = 255, b = 255;
 float brightness = 1.0f;
+float targetBrightness = 1.0f;
 
 String lampHostname;
 float calibRed = 1.0f;
@@ -88,12 +104,48 @@ float curVal = 0.0f;
 
 long lastSensorBurstRead = 0;
 long lastMillis = 0;
+long lastBrightnessAdjustMillis = 0;
 
 void onButton(uint8_t btn);
 void update();
 void switchApp(App* pApp);
 void writeConfiguration();
 
+#ifdef MQTT_ENABLE
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+	Logger.info("Message arrived [%s]", topic);
+
+	Logger.info("Lamp state: %s, msg: %d", isOn ? "ON" : "OFF", payload[0]);
+
+	if (payload[0] == '0' && isOn) {
+		Logger.debug("Turning lamp OFF");
+		turnOffRunnable.init();
+		pCurrentRunnable = &turnOffRunnable;
+	} else if (payload[0] == '1' && !isOn) {
+		Logger.debug("Turning lamp ON");
+		turnOnRunnable.init();
+		pCurrentRunnable = &turnOnRunnable;
+	}
+	update();
+}
+
+void mqttReconnect() {
+	// Loop until we're reconnected
+	while (!mqttClient.connected()) {
+		Logger.info("Attempting MQTT connection...");
+		if (mqttClient.connect(lampHostname.c_str())) {
+			Logger.info("Connected to MQTT server");
+			mqttClient.subscribe(MQTT_TOPIC);
+		} else {
+			Logger.info("failed, rc=%d. Trying again in a few seconds",
+					mqttClient.state());
+			delay(5000);
+		}
+	}
+}
+#endif // MQTT_ENABLE
+
+#ifdef ARTNET_ENABLE
 void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence,
 		uint8_t* data) {
 
@@ -109,16 +161,22 @@ void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence,
 
 	matrix.update();
 }
+#endif // ARTNET_ENABLE
 
 void connectToWiFi() {
 	WiFi.hostname(lampHostname);
 	WiFi.mode(WIFI_STA);
 	WiFi.begin();
-	ESP.wdtDisable();
 	WiFiManager wifiManager;
-	wifiManager.setDebugOutput(false); // without this WDT restarts ESP
-	wifiManager.autoConnect("SmartLEDLampAP");
-	ESP.wdtEnable(0);
+	wifiManager.setTimeout(60 * 2);
+	char apName[32];
+	sprintf(apName, "SmartLEDLamp-%06x", ESP.getChipId());
+	if (!wifiManager.autoConnect(apName)) {
+		delay(1000);
+		Logger.info("Failed to connect, resetting...");
+		ESP.reset();
+		delay(3000);
+	}
 
 	if (WiFi.isConnected()) {
 		Logger.info("IP: %s", WiFi.localIP().toString().c_str());
@@ -131,12 +189,11 @@ void handleAction() {
 		if (act == "off" && isOn) {
 			turnOffRunnable.init();
 			pCurrentRunnable = &turnOffRunnable;
-			update();
 		} else if (act == "on" && !isOn) {
 			turnOnRunnable.init();
 			pCurrentRunnable = &turnOnRunnable;
-			update();
 		}
+		update();
 	}
 
 	String btn = server.arg("btn");
@@ -152,9 +209,10 @@ void handleAction() {
 	if (brightness.length() != 0) {
 		long bghtness = brightness.toInt();
 
-		if (bghtness >= 1 && bghtness <= 100) {
-			matrix.setBrightness((float) (bghtness / 100.0));
-			update();
+		if (bghtness >= 0 && bghtness <= 100) {
+			if (bghtness == 0)
+				bghtness = 1;
+			targetBrightness = (float) (bghtness / 100.0);
 		}
 	}
 
@@ -256,6 +314,24 @@ void setupOTA() {
 }
 
 void switchApp(App* pApp) {
+	if (pApp == pCurrentApp)
+		return;
+
+	if (!pApp) {
+		EEPROM.write(0, 0);
+	} else if (pApp == pVisApp1) {
+		EEPROM.write(0, 1);
+	} else if (pApp == pVisApp2) {
+		EEPROM.write(0, 2);
+	} else if (pApp == pVisApp3) {
+		EEPROM.write(0, 3);
+	} else if (pApp == pVisApp4) {
+		EEPROM.write(0, 4);
+	} else if (pApp == pVisApp5) {
+		EEPROM.write(0, 5);
+	}
+	EEPROM.commit();
+
 	if (pCurrentApp) {
 		pCurrentApp->stop();
 	}
@@ -283,31 +359,23 @@ void readConfiguration() {
 		return;
 	}
 
-	std::unique_ptr<char[]> buf(new char[size]);
-	configFile.readBytes(buf.get(), size);
-
-	StaticJsonBuffer<200> jsonBuffer;
-	JsonObject& json = jsonBuffer.parseObject(buf.get());
-
-	if (!json.success()) {
+	StaticJsonDocument<200> jsonDoc;
+	DeserializationError err = deserializeJson(jsonDoc, configFile);
+	if (err) {
 		Logger.error("Failed to parse config file");
 		return;
 	}
 
-	lampHostname = json["hostname"].asString();
+	char defaultHostname[15];
+	sprintf(defaultHostname, "LEDLamp-%06x", ESP.getChipId());
 
-	if (!lampHostname || !lampHostname.length()) {
-		char host[15];
-		sprintf(host, "LEDLamp-%06x", ESP.getChipId());
-		lampHostname = host;
-		Logger.info("No hostname set, defaulting to %s", lampHostname.c_str());
-	} else {
-		Logger.info("Hostname is %s", lampHostname.c_str());
-	}
+	lampHostname = jsonDoc["hostname"] | defaultHostname;
 
-	calibRed = json["calibration"]["red"];
-	calibGreen = json["calibration"]["green"];
-	calibBlue = json["calibration"]["blue"];
+	Logger.info("Hostname is %s", lampHostname.c_str());
+
+	calibRed = jsonDoc["calibration"]["red"];
+	calibGreen = jsonDoc["calibration"]["green"];
+	calibBlue = jsonDoc["calibration"]["blue"];
 
 	configFile.close();
 }
@@ -315,17 +383,16 @@ void readConfiguration() {
 void writeConfiguration() {
 	File configFile = SPIFFS.open("/config.json", "w");
 
-	StaticJsonBuffer<200> jsonBuffer;
-	JsonObject& root = jsonBuffer.createObject();
+	StaticJsonDocument<200> jsonDoc;
 	if (lampHostname)
-		root["hostname"] = lampHostname;
+		jsonDoc["hostname"] = lampHostname;
 
-	root.createNestedObject("calibration");
-	root["calibration"]["red"] = calibRed;
-	root["calibration"]["green"] = calibGreen;
-	root["calibration"]["blue"] = calibBlue;
+	JsonObject calibration = jsonDoc.createNestedObject("calibration");
+	calibration["red"] = calibRed;
+	calibration["green"] = calibGreen;
+	calibration["blue"] = calibBlue;
 
-	root.prettyPrintTo(configFile);
+	serializeJsonPretty(jsonDoc, configFile);
 
 	configFile.close();
 }
@@ -339,7 +406,7 @@ void setup() {
 
 	Logger.begin();
 	Serial.println("\n\n\n\n");
-	Logger.info("Starting Smart LED Lamp");
+	Logger.info("Starting Smart LED Lamp %s", VERSION);
 	Logger.info("Free Sketch Space: %i", ESP.getFreeSketchSpace());
 
 	SPIFFS.begin();
@@ -358,8 +425,10 @@ void setup() {
 
 	startWebServer();
 
+#ifdef ARTNET_ENABLE
 	artnet.setArtDmxCallback(onDmxFrame);
 	artnet.begin();
+#endif // ARTNET_ENABLE
 
 	matrix.clear();
 
@@ -378,15 +447,35 @@ void setup() {
 	pVisApp5 = new VisualizerApp(&matrix);
 	pVisApp5->setVisualizer(0, new NoiseWithPaletteVisualizer());
 
-	switchApp(NULL);
-
 #ifdef IR_ENABLE
 	irrecv.enableIRIn(); // Start the receiver
 #endif
 
+#ifdef MQTT_ENABLE
+	mqttClient.setServer(MQTT_SERVER, 1883);
+	mqttClient.setCallback(mqttCallback);
+#endif // MQTT_ENABLE
+
 	update();
 
 	pinMode(sensorPin, INPUT);
+
+	EEPROM.begin(16);
+	uint8_t lastApp = EEPROM.read(0);
+	if (lastApp >= 0 && lastApp <= 5) {
+		if (lastApp == 0)
+			switchApp(NULL);
+		else if (lastApp == 1)
+			switchApp(pVisApp1);
+		else if (lastApp == 2)
+			switchApp(pVisApp2);
+		else if (lastApp == 3)
+			switchApp(pVisApp3);
+		else if (lastApp == 4)
+			switchApp(pVisApp4);
+		else if (lastApp == 5)
+			switchApp(pVisApp5);
+	}
 }
 
 void update() {
@@ -413,6 +502,7 @@ void onButton(uint8_t btn) {
 			turnOffRunnable.init();
 			pCurrentRunnable = &turnOffRunnable;
 		}
+		delay(200);
 		update();
 	}
 
@@ -431,6 +521,7 @@ void onButton(uint8_t btn) {
 		if (brightness > 1.0f)
 			brightness = 1.0f;
 		matrix.setBrightness(brightness);
+		targetBrightness = brightness;
 		matrix.update();
 		break;
 	case BTN_DARKER:
@@ -438,6 +529,7 @@ void onButton(uint8_t btn) {
 		if (brightness < 0.05f)
 			brightness = 0.05f;
 		matrix.setBrightness(brightness);
+		targetBrightness = brightness;
 		matrix.update();
 		break;
 	case BTN_PAUSE:
@@ -679,6 +771,30 @@ void loop() {
 	webSocket.loop();
 	Logger.loop();
 
+	if (brightness != targetBrightness
+			&& currentMillis > lastBrightnessAdjustMillis + 25) {
+		lastBrightnessAdjustMillis = currentMillis;
+
+		int brightnessDiff = 100 * targetBrightness - 100 * brightness;
+
+		if (abs(brightnessDiff) <= 1) {
+			brightness = targetBrightness;
+		}
+
+		if (brightness > targetBrightness) {
+			brightness -= 0.01;
+		} else if (brightness < targetBrightness) {
+			brightness += 0.01;
+		}
+		Logger.debug("Setting brightness to %f (%f)", brightness,
+				targetBrightness);
+		matrix.setBrightness(brightness);
+
+		if ((!pCurrentRunnable && !pCurrentApp) || !isPlaying) {
+			update();
+		}
+	}
+
 	if (pCurrentRunnable) {
 		pCurrentRunnable->run();
 		update();
@@ -687,9 +803,15 @@ void loop() {
 	if (isOn && isPlaying) {
 		if (pCurrentApp) {
 			pCurrentApp->run();
-		} else {
+		}
+#ifdef ARTNET_ENABLE
+		else {
 			artnet.read();
 		}
+#endif // ARTNET_ENABLE
+	} else if (currentMillis > lastMatrixRefreshMs + 5000) {
+		lastMatrixRefreshMs = currentMillis;
+		update();
 	}
 
 #ifdef IR_ENABLE
@@ -716,4 +838,12 @@ void loop() {
 		irrecv.resume(); // Receive the next value
 	}
 #endif
+
+#ifdef MQTT_ENABLE
+	if (!mqttClient.connected()) {
+		mqttReconnect();
+	}
+	mqttClient.loop();
+#endif
+
 }

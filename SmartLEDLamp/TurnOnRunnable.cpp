@@ -22,7 +22,12 @@ void TurnOnRunnable::init() {
 }
 
 void TurnOnRunnable::run() {
-	isOn = true;
+	if (!isOn) {
+		isOn = true;
+#ifdef MQTT_ENABLE
+		mqttClient.publish(MQTT_TOPIC, "1", true);
+#endif // MQTT_ENABLE
+	}
 
 	unsigned long int currentMillis = millis();
 

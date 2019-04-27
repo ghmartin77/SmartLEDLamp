@@ -2,6 +2,7 @@
  * TurnOffRunnable.cpp
  */
 
+#include "defines.h"
 #include "TurnOffRunnable.h"
 #include "LEDLamp.h"
 #include <stddef.h>
@@ -33,6 +34,10 @@ void TurnOffRunnable::run() {
 		pMatrix->setYOffset(pMatrix->getHeight());
 		pCurrentRunnable = NULL;
 		isOn = false;
+
+#ifdef MQTT_ENABLE
+		mqttClient.publish(MQTT_TOPIC, "0", true);
+#endif // MQTT_ENABLE
 	}
 }
 
