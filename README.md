@@ -60,7 +60,7 @@ Animation example (fire)
     * WebSockets - https://github.com/Links2004/arduinoWebSockets
     * WiFiManager - https://github.com/tzapu/WiFiManager
     * ArtnetWifi (optional, check for ARTNET_ENABLE in defines.h to activate) - https://github.com/rstephan/ArtnetWifi (to use http://www.solderlab.de/index.php/software/glediator for example)
-    * IRremoteESP8266 (optional, only if you want to use an IR receiver; if not, check for IR_ENABLE in defines.h to switch it off) - https://github.com/sebastienwarin/IRremoteESP8266
+    * IRremoteESP8266 (optional, only if you want to use an IR receiver; If so, check for IR_ENABLE in defines.h to activate) - https://github.com/markszabo/IRremoteESP8266
     * PubSubClient (optional, check for MQTT_ENABLE in defines.h to activate) - https://github.com/knolleary/pubsubclient
     
 * Compile & upload
