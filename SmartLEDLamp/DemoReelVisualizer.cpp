@@ -1,4 +1,6 @@
 #include "DemoReelVisualizer.h"
+#include <EEPROM.h>
+#include "Log.h"
 
 DemoReelVisualizer::DemoReelVisualizer() {
 }
@@ -110,3 +112,18 @@ boolean DemoReelVisualizer::onButtonPressed(uint8_t button) {
 
 	return handled;
 }
+
+void DemoReelVisualizer::readRuntimeConfiguration(int &address) {
+	Logger.debug("DemoReelVisualizer::readRuntimeConfiguration");
+	Visualizer::readRuntimeConfiguration(address);
+	EEPROM.get(address, currentPatternNumber);
+	address += sizeof(currentPatternNumber);
+}
+
+void DemoReelVisualizer::writeRuntimeConfiguration(int &address) {
+	Logger.debug("DemoReelVisualizer::writeRuntimeConfiguration");
+	Visualizer::writeRuntimeConfiguration(address);
+	EEPROM.write(address, currentPatternNumber);
+	address += sizeof(currentPatternNumber);
+}
+

@@ -19,6 +19,9 @@ public:
 
 	virtual boolean onButtonPressed(uint8_t button);
 
+	virtual void readRuntimeConfiguration(int &address);
+	virtual void writeRuntimeConfiguration(int &address);
+
 protected:
 	virtual void computeImage();
 	void computeImage1();
@@ -26,8 +29,8 @@ protected:
 	void computeImage3();
 
 private:
-	int8_t rendererId = 0;
-	int8_t paletteNo;
+	uint8_t rendererId = 0;
+	uint8_t paletteNo;
 	int16_t paletteMax;
 	CRGBPalette16 palette[7] = { CRGBPalette16(HeatColors_p), CRGBPalette16(
 			HeatColorsGreen_p), CRGBPalette16(HeatColorsBlue_p), CRGBPalette16(

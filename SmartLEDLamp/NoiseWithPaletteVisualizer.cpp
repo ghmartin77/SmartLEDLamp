@@ -1,4 +1,6 @@
 #include "NoiseWithPaletteVisualizer.h"
+#include <EEPROM.h>
+#include "Log.h"
 
 NoiseWithPaletteVisualizer::NoiseWithPaletteVisualizer() :
 		currentPalette(PartyColors_p) {
@@ -224,4 +226,26 @@ boolean NoiseWithPaletteVisualizer::onButtonPressed(uint8_t button) {
 	}
 
 	return handled;
+}
+
+void NoiseWithPaletteVisualizer::readRuntimeConfiguration(int &address) {
+	Logger.debug("NoiseWithPaletteVisualizer::readRuntimeConfiguration");
+	Visualizer::readRuntimeConfiguration(address);
+	EEPROM.get(address, speed);
+	address += sizeof(speed);
+	EEPROM.get(address, scale);
+	address += sizeof(scale);
+	EEPROM.get(address, profile);
+	address += sizeof(profile);
+}
+
+void NoiseWithPaletteVisualizer::writeRuntimeConfiguration(int &address) {
+	Logger.debug("NoiseWithPaletteVisualizer::writeRuntimeConfiguration");
+	Visualizer::writeRuntimeConfiguration(address);
+	EEPROM.put(address, speed);
+	address += sizeof(speed);
+	EEPROM.put(address, scale);
+	address += sizeof(scale);
+	EEPROM.put(address, profile);
+	address += sizeof(profile);
 }

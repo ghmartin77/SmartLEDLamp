@@ -2,10 +2,11 @@
 #define APP_H_
 
 #include "LEDMatrix.h"
+#include "RuntimeConfigurable.h"
 
-class App {
+class App: public virtual RuntimeConfigurable {
 public:
-	App(LEDMatrix* pLEDMatrix);
+	App(uint8_t appId, LEDMatrix* pLEDMatrix);
 	virtual ~App();
 
 	virtual void start() {
@@ -25,7 +26,12 @@ public:
 		return name;
 	}
 
+	const uint8_t getId() const {
+		return id;
+	}
+
 protected:
+	const uint8_t id;
 	const char* name;
 	LEDMatrix *pMatrix;
 };

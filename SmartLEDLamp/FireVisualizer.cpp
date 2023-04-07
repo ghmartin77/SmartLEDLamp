@@ -1,4 +1,6 @@
 #include "FireVisualizer.h"
+#include <EEPROM.h>
+#include "Log.h"
 
 FireVisualizer::FireVisualizer() :
 		cooling(95), sparking(200), paletteNo(0), paletteMax(240) {
@@ -299,6 +301,36 @@ boolean FireVisualizer::onButtonPressed(uint8_t button) {
 	}
 
 	return handled;
+}
+
+void FireVisualizer::readRuntimeConfiguration(int &address) {
+	Logger.debug("FireVisualizer::readRuntimeConfiguration");
+	Visualizer::readRuntimeConfiguration(address);
+	EEPROM.get(address, rendererId);
+	address += sizeof(rendererId);
+	EEPROM.get(address, cooling);
+	address += sizeof(cooling);
+	EEPROM.get(address, sparking);
+	address += sizeof(sparking);
+	EEPROM.get(address, paletteNo);
+	address += sizeof(paletteNo);
+	EEPROM.get(address, paletteMax);
+	address += sizeof(paletteMax);
+}
+
+void FireVisualizer::writeRuntimeConfiguration(int &address) {
+	Logger.debug("FireVisualizer::writeRuntimeConfiguration");
+	Visualizer::writeRuntimeConfiguration(address);
+	EEPROM.put(address, rendererId);
+	address += sizeof(rendererId);
+	EEPROM.put(address, cooling);
+	address += sizeof(cooling);
+	EEPROM.put(address, sparking);
+	address += sizeof(sparking);
+	EEPROM.put(address, paletteNo);
+	address += sizeof(paletteNo);
+	EEPROM.put(address, paletteMax);
+	address += sizeof(paletteMax);
 }
 
 const TProgmemRGBPalette16 HeatColorsBlue_p FL_PROGMEM = { 0x000000, 0x000033,

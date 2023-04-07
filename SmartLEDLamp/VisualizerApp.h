@@ -4,9 +4,11 @@
 #include "App.h"
 #include "Visualizer.h"
 
+#define NO_VISUALIZERS 2
+
 class VisualizerApp: public App {
 public:
-	VisualizerApp(LEDMatrix* pLEDMatrix);
+	VisualizerApp(uint8_t appId, LEDMatrix* pLEDMatrix);
 	virtual ~VisualizerApp();
 
 	virtual void start();
@@ -16,13 +18,16 @@ public:
 
 	virtual boolean onButtonPressed(uint8_t button);
 
+	virtual void readRuntimeConfiguration(int &address);
+	virtual void writeRuntimeConfiguration(int &address);
+
 	void setVisualizer(uint8_t idx, Visualizer* pVisualizer);
 
 private:
-	Visualizer* visualizers[2] = { NULL, NULL };
+	Visualizer* visualizers[NO_VISUALIZERS] = { NULL, NULL };
 	unsigned long int lastMillis;
 
-	uint8_t* pImageData[2] = { NULL, NULL };
+	uint8_t* pImageData[NO_VISUALIZERS] = { NULL, NULL };
 };
 
 #endif /* VISUALIZERAPP_H_ */

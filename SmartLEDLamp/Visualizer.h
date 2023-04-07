@@ -3,8 +3,9 @@
 
 #include <Arduino.h>
 #include "defines.h"
+#include "RuntimeConfigurable.h"
 
-class Visualizer {
+class Visualizer: public virtual RuntimeConfigurable {
 public:
 	Visualizer();
 	virtual ~Visualizer();
@@ -17,9 +18,16 @@ public:
 
 	uint8_t* renderNextImage();
 
+	uint8_t* getImage() {
+		return imageData;
+	}
+
 	virtual boolean onButtonPressed(uint8_t button) {
 		return false;
 	}
+
+	virtual void readRuntimeConfiguration(int &address);
+	virtual void writeRuntimeConfiguration(int &address);
 
 protected:
 	int8_t speed;

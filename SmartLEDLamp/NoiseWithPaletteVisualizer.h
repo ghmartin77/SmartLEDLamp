@@ -17,6 +17,9 @@ public:
 
 	virtual boolean onButtonPressed(uint8_t button);
 
+	virtual void readRuntimeConfiguration(int &address);
+	virtual void writeRuntimeConfiguration(int &address);
+
 protected:
 	virtual void computeImage();
 

@@ -1,7 +1,7 @@
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
-#define VERSION "0.2"
+#define VERSION "0.3"
 
 // Uncomment next line to enable IR code if you don't use an IR receiver
 // #define IR_ENABLE
@@ -57,5 +57,8 @@
 #define BTN_JUMP7 42
 #define BTN_FADE3 43
 #define BTN_FADE7 44
+
+#define MAGIC_MARKER 0xCA
+#define EEPROM_SIZE 1024
 
 #endif /* DEFINES_H_ */

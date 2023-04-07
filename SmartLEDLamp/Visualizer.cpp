@@ -1,4 +1,6 @@
 #include "Visualizer.h"
+#include <EEPROM.h>
+#include "Log.h"
 
 Visualizer::Visualizer() :
 		speed(0), speedCounter(0) {
@@ -18,4 +20,16 @@ uint8_t* Visualizer::renderNextImage() {
 	}
 
 	return imageData;
+}
+
+void Visualizer::readRuntimeConfiguration(int &address) {
+	Logger.debug("Visualizer::readRuntimeConfiguration");
+	EEPROM.get(address, speed);
+	address += sizeof(speed);
+}
+
+void Visualizer::writeRuntimeConfiguration(int &address) {
+	Logger.debug("Visualizer::writeRuntimeConfiguration");
+	EEPROM.write(address, speed);
+	address += sizeof(speed);
 }

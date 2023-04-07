@@ -75,11 +75,8 @@ boolean isOn = false;
 boolean isPlaying = true;
 
 App* pCurrentApp = NULL;
-VisualizerApp* pVisApp1;
-VisualizerApp* pVisApp2;
-VisualizerApp* pVisApp3;
-VisualizerApp* pVisApp4;
-VisualizerApp* pVisApp5;
+
+std::vector<App*> allApps;
 
 Runnable* pCurrentRunnable = NULL;
 
@@ -88,7 +85,7 @@ long sensorValue = 0;
 
 long lmillis = 0;
 uint8_t lastButton = 0;
-int r = 255, g = 255, b = 255;
+uint8_t r = 255, g = 255, b = 255;
 float brightness = 1.0f;
 float targetBrightness = 1.0f;
 
@@ -105,11 +102,29 @@ float curVal = 0.0f;
 long lastSensorBurstRead = 0;
 long lastMillis = 0;
 long lastBrightnessAdjustMillis = 0;
+long flushRuntimeConfigurationMillis = 0;
 
 void onButton(uint8_t btn);
 void update();
 void switchApp(App* pApp);
 void writeConfiguration();
+
+void readAndApplyRuntimeConfiguration();
+void writeRuntimeConfiguration();
+void flushRuntimeConfiguration();
+
+App* getAppById(uint8_t appId) {
+	std::vector<App*>::iterator it = allApps.begin();
+
+	while (it != allApps.end()) {
+		if (appId == (*it)->getId()) {
+			return (*it);
+		}
+		it++;
+	}
+
+	return NULL;
+}
 
 #ifdef MQTT_ENABLE
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
@@ -192,6 +207,16 @@ void handleAction() {
 		} else if (act == "on" && !isOn) {
 			turnOnRunnable.init();
 			pCurrentRunnable = &turnOnRunnable;
+		} else if (act == "restart") {
+			ESP.restart();
+			delay(3000);
+		} else if (act == "resetconfig") {
+			for (int i = 0; i < EEPROM_SIZE; ++i) {
+				EEPROM.write(i, 0);
+				EEPROM.commit();
+			}
+			ESP.restart();
+			delay(3000);
 		}
 		update();
 	}
@@ -319,18 +344,9 @@ void switchApp(App* pApp) {
 
 	if (!pApp) {
 		EEPROM.write(0, 0);
-	} else if (pApp == pVisApp1) {
-		EEPROM.write(0, 1);
-	} else if (pApp == pVisApp2) {
-		EEPROM.write(0, 2);
-	} else if (pApp == pVisApp3) {
-		EEPROM.write(0, 3);
-	} else if (pApp == pVisApp4) {
-		EEPROM.write(0, 4);
-	} else if (pApp == pVisApp5) {
-		EEPROM.write(0, 5);
+	} else {
+		EEPROM.write(0, pApp->getId());
 	}
-	EEPROM.commit();
 
 	if (pCurrentApp) {
 		pCurrentApp->stop();
@@ -432,20 +448,27 @@ void setup() {
 
 	matrix.clear();
 
-	pVisApp1 = new VisualizerApp(&matrix);
-	pVisApp1->setVisualizer(0, new FadeAndScrollVisualizer(1, 20));
+	uint8_t id = 1;
 
-	pVisApp2 = new VisualizerApp(&matrix);
-	pVisApp2->setVisualizer(0, new FireVisualizer());
+	VisualizerApp *pVisApp = new VisualizerApp(id++, &matrix);
+	pVisApp->setVisualizer(0, new FadeAndScrollVisualizer(1, 20));
+	allApps.push_back(pVisApp);
 
-	pVisApp3 = new VisualizerApp(&matrix);
-	pVisApp3->setVisualizer(0, new DemoReelVisualizer());
+	pVisApp = new VisualizerApp(id++, &matrix);
+	pVisApp->setVisualizer(0, new FireVisualizer());
+	allApps.push_back(pVisApp);
 
-	pVisApp4 = new VisualizerApp(&matrix);
-	pVisApp4->setVisualizer(0, new VUMeterVisualizer(&curVal));
+	pVisApp = new VisualizerApp(id++, &matrix);
+	pVisApp->setVisualizer(0, new DemoReelVisualizer());
+	allApps.push_back(pVisApp);
 
-	pVisApp5 = new VisualizerApp(&matrix);
-	pVisApp5->setVisualizer(0, new NoiseWithPaletteVisualizer());
+	pVisApp = new VisualizerApp(id++, &matrix);
+	pVisApp->setVisualizer(0, new VUMeterVisualizer(&curVal));
+	allApps.push_back(pVisApp);
+
+	pVisApp = new VisualizerApp(id++, &matrix);
+	pVisApp->setVisualizer(0, new NoiseWithPaletteVisualizer());
+	allApps.push_back(pVisApp);
 
 #ifdef IR_ENABLE
 	irrecv.enableIRIn(); // Start the receiver
@@ -460,22 +483,97 @@ void setup() {
 
 	pinMode(sensorPin, INPUT);
 
-	EEPROM.begin(16);
-	uint8_t lastApp = EEPROM.read(0);
-	if (lastApp >= 0 && lastApp <= 5) {
-		if (lastApp == 0)
-			switchApp(NULL);
-		else if (lastApp == 1)
-			switchApp(pVisApp1);
-		else if (lastApp == 2)
-			switchApp(pVisApp2);
-		else if (lastApp == 3)
-			switchApp(pVisApp3);
-		else if (lastApp == 4)
-			switchApp(pVisApp4);
-		else if (lastApp == 5)
-			switchApp(pVisApp5);
+	EEPROM.begin(EEPROM_SIZE);
+	readAndApplyRuntimeConfiguration();
+}
+
+void readAndApplyRuntimeConfiguration() {
+	Logger.debug("Reading Runtime Configuration");
+
+	int addr = 0;
+	uint8_t lastApp = EEPROM.read(addr);
+
+	// check for EEPROM validity marker
+	if (EEPROM.read(++addr) == MAGIC_MARKER) {
+		isPlaying = (EEPROM.read(++addr) != 0);
+
+		matrix.setBrightness(EEPROM.get(++addr, brightness));
+		targetBrightness = brightness;
+		addr += sizeof(brightness);
+
+		EEPROM.get(addr, r);
+		addr += sizeof(r);
+		EEPROM.get(addr, g);
+		addr += sizeof(g);
+		EEPROM.get(addr, b);
+		addr += sizeof(b);
+	} else {
+		Logger.debug("Couldn't find MAGIC_MARKER, skipped configuring");
 	}
+
+	addr = 16;
+
+	std::vector<App*>::iterator it = allApps.begin();
+	while (it != allApps.end()) {
+		Logger.debug("Reading Runtime Configuration for app#%i (%s)", (*it)->getId(), (*it)->getName());
+
+		if (EEPROM.read(addr) == MAGIC_MARKER) {
+			addr += 1;
+			(*it)->readRuntimeConfiguration(addr);
+		} else {
+			Logger.debug("Couldn't find MAGIC_MARKER, skipped configuring");
+		}
+		it++;
+	}
+
+	switchApp(getAppById(lastApp));
+}
+
+void writeRuntimeConfiguration() {
+	Logger.debug("Writing Runtime Configuration");
+
+	int addr = 0;
+	uint8_t curApp = 0;
+
+	if (pCurrentApp) {
+		curApp = pCurrentApp->getId();
+	}
+
+	EEPROM.write(addr, curApp);
+
+	EEPROM.write(++addr, MAGIC_MARKER);
+	EEPROM.write(++addr, isPlaying ? 1 : 0);
+
+	EEPROM.put(++addr, brightness);
+	addr += sizeof(brightness);
+
+	EEPROM.write(addr, r);
+	addr += sizeof(r);
+	EEPROM.write(addr, g);
+	addr += sizeof(g);
+	EEPROM.write(addr, b);
+	addr += sizeof(b);
+
+	addr = 16;
+
+	std::vector<App*>::iterator it = allApps.begin();
+	while (it != allApps.end()) {
+		EEPROM.write(addr, MAGIC_MARKER);
+		addr += 1;
+		(*it)->writeRuntimeConfiguration(addr);
+
+		it++;
+	}
+}
+
+void flushRuntimeConfiguration() {
+	Logger.debug("Flushing Runtime Configuration");
+	EEPROM.commit();
+}
+
+void writeAndFlushRuntimeConfigurationDelayed(long flushInSecs) {
+	writeRuntimeConfiguration();
+	flushRuntimeConfigurationMillis = millis() + flushInSecs * 1000;
 }
 
 void update() {
@@ -501,6 +599,8 @@ void onButton(uint8_t btn) {
 		} else {
 			turnOffRunnable.init();
 			pCurrentRunnable = &turnOffRunnable;
+
+			writeAndFlushRuntimeConfigurationDelayed(0);
 		}
 		delay(200);
 		update();
@@ -511,9 +611,13 @@ void onButton(uint8_t btn) {
 	}
 
 	if (pCurrentApp) {
-		if (pCurrentApp->onButtonPressed(btn))
+		if (pCurrentApp->onButtonPressed(btn)) {
+			writeAndFlushRuntimeConfigurationDelayed(5);
 			return;
+		}
 	}
+
+	boolean runtimeConfigurationChanged = false;
 
 	switch (btn) {
 	case BTN_BRIGHTER:
@@ -523,6 +627,7 @@ void onButton(uint8_t btn) {
 		matrix.setBrightness(brightness);
 		targetBrightness = brightness;
 		matrix.update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_DARKER:
 		brightness -= 0.05f;
@@ -531,9 +636,11 @@ void onButton(uint8_t btn) {
 		matrix.setBrightness(brightness);
 		targetBrightness = brightness;
 		matrix.update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_PAUSE:
 		isPlaying = !isPlaying;
+		runtimeConfigurationChanged = true;
 		delay(200);
 		break;
 
@@ -542,23 +649,27 @@ void onButton(uint8_t btn) {
 		g = b = 0;
 		r = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_G:
 		switchApp(NULL);
 		r = b = 0;
 		g = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_B:
 		switchApp(NULL);
 		r = g = 0;
 		b = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_W:
 		switchApp(NULL);
 		r = g = b = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case 9:
@@ -567,6 +678,7 @@ void onButton(uint8_t btn) {
 		g = 0x28;
 		b = 0x0a;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 10:
 		switchApp(NULL);
@@ -574,6 +686,7 @@ void onButton(uint8_t btn) {
 		g = 0xff;
 		b = 0x14;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 11:
 		switchApp(NULL);
@@ -581,6 +694,7 @@ void onButton(uint8_t btn) {
 		g = 0x19;
 		b = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 12:
 		switchApp(NULL);
@@ -588,6 +702,7 @@ void onButton(uint8_t btn) {
 		g = 0x69;
 		b = 0x1e;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case 13:
@@ -596,6 +711,7 @@ void onButton(uint8_t btn) {
 		g = 0x28;
 		b = 0x0f;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 14:
 		switchApp(NULL);
@@ -603,6 +719,7 @@ void onButton(uint8_t btn) {
 		g = 0x7d;
 		b = 0x69;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 15:
 		switchApp(NULL);
@@ -610,6 +727,7 @@ void onButton(uint8_t btn) {
 		g = 0x00;
 		b = 0x14;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 16:
 		switchApp(NULL);
@@ -617,6 +735,7 @@ void onButton(uint8_t btn) {
 		g = 0x69;
 		b = 0x1e;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case 17:
@@ -625,6 +744,7 @@ void onButton(uint8_t btn) {
 		g = 0x28;
 		b = 0x0a;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 18:
 		switchApp(NULL);
@@ -632,6 +752,7 @@ void onButton(uint8_t btn) {
 		g = 0x46;
 		b = 0x37;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 19:
 		switchApp(NULL);
@@ -639,6 +760,7 @@ void onButton(uint8_t btn) {
 		g = 0x00;
 		b = 0x69;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 20:
 		switchApp(NULL);
@@ -646,6 +768,7 @@ void onButton(uint8_t btn) {
 		g = 0x55;
 		b = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case 21:
@@ -654,6 +777,7 @@ void onButton(uint8_t btn) {
 		g = 0xec;
 		b = 0x00;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 22:
 		switchApp(NULL);
@@ -661,6 +785,7 @@ void onButton(uint8_t btn) {
 		g = 0x23;
 		b = 0x0a;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 23:
 		switchApp(NULL);
@@ -668,6 +793,7 @@ void onButton(uint8_t btn) {
 		g = 0x00;
 		b = 0x37;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case 24:
 		switchApp(NULL);
@@ -675,6 +801,7 @@ void onButton(uint8_t btn) {
 		g = 0x55;
 		b = 0xff;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case BTN_RED_UP:
@@ -682,56 +809,70 @@ void onButton(uint8_t btn) {
 		if (r > 255)
 			r = 255;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_RED_DOWN:
 		r -= 5;
 		if (r < 0)
 			r = 0;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_GREEN_UP:
 		g += 5;
 		if (g > 255)
 			g = 255;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_GREEN_DOWN:
 		g -= 5;
 		if (g < 0)
 			g = 0;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_BLUE_UP:
 		b += 5;
 		if (b > 255)
 			b = 255;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_BLUE_DOWN:
 		b -= 5;
 		if (b < 0)
 			b = 0;
 		update();
+		runtimeConfigurationChanged = true;
 		break;
 
 	case BTN_FLASH:
-		switchApp(pVisApp5);
+		switchApp(getAppById(5));
+		runtimeConfigurationChanged = true;
 		break;
 
 	case BTN_JUMP3:
-		switchApp(pVisApp1);
+		switchApp(getAppById(1));
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_JUMP7:
-		switchApp(pVisApp2);
+		switchApp(getAppById(2));
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_FADE3:
-		switchApp(pVisApp3);
+		switchApp(getAppById(3));
+		runtimeConfigurationChanged = true;
 		break;
 	case BTN_FADE7:
-		switchApp(pVisApp4);
+		switchApp(getAppById(4));
+		runtimeConfigurationChanged = true;
 		break;
 	}
 
+	if (runtimeConfigurationChanged) {
+		writeAndFlushRuntimeConfigurationDelayed(5);
+	}
 }
 
 void readAnalogPeek() {
@@ -846,4 +987,11 @@ void loop() {
 	mqttClient.loop();
 #endif
 
+	if (flushRuntimeConfigurationMillis != 0 && currentMillis >= flushRuntimeConfigurationMillis) {
+		flushRuntimeConfigurationMillis = 0;
+
+		flushRuntimeConfiguration();
+	}
+
+	yield();
 }

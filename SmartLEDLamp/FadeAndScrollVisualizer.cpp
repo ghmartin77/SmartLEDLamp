@@ -1,10 +1,12 @@
 #include "FadeAndScrollVisualizer.h"
 #include "defines.h"
+#include <EEPROM.h>
+#include "Log.h"
 
 FadeAndScrollVisualizer::FadeAndScrollVisualizer(uint8_t _fsSpeed,
 		uint8_t _fsZoom) :
 		fsSpeed(_fsSpeed), fsZoom(_fsZoom), pFsHeight(NULL), pFsLut(NULL), fsIndex(
-				0) {
+				0), fsHeightOffset(0) {
 }
 
 FadeAndScrollVisualizer::~FadeAndScrollVisualizer() {
@@ -28,8 +30,8 @@ void FadeAndScrollVisualizer::computeImage() {
 void FadeAndScrollVisualizer::updateFsHeight() {
 	for (int x = 0; x < LEDS_WIDTH; x++) {
 		for (int y = 0; y < LEDS_HEIGHT; y++) {
-			fsIndex = (y * LEDS_WIDTH + x);
-			pFsHeight[fsIndex] = y * fsZoom % 1536;
+			fsIndex = y * LEDS_WIDTH + x;
+			pFsHeight[fsIndex] = (fsHeightOffset + (y * fsZoom)) % 1536;
 		}
 	}
 }
@@ -67,6 +69,7 @@ void FadeAndScrollVisualizer::start() {
 	}
 
 	updateFsHeight();
+	computeImage();
 }
 
 void FadeAndScrollVisualizer::stop() {
@@ -113,3 +116,40 @@ boolean FadeAndScrollVisualizer::onButtonPressed(uint8_t button) {
 
 	return handled;
 }
+
+void FadeAndScrollVisualizer::readRuntimeConfiguration(int &address) {
+	Logger.debug("FadeAndScrollVisualizer::readRuntimeConfiguration");
+	Visualizer::readRuntimeConfiguration(address);
+	EEPROM.get(address, fsSpeed);
+	address += sizeof(fsSpeed);
+	EEPROM.get(address, fsZoom);
+	address += sizeof(fsZoom);
+	EEPROM.get(address, fsHeightOffset);
+	address += sizeof(fsHeightOffset);
+
+	// adjust offset to cope for modification in computeImage()
+	fsHeightOffset -= fsSpeed;
+	if (fsHeightOffset < 0) {
+		fsHeightOffset += 1536;
+	}
+
+}
+
+void FadeAndScrollVisualizer::writeRuntimeConfiguration(int &address) {
+	Logger.debug("FadeAndScrollVisualizer::writeRuntimeConfiguration");
+
+	fsHeightOffset = 0;
+
+	if (pFsHeight) {
+		fsHeightOffset = pFsHeight[0];
+	}
+
+	Visualizer::writeRuntimeConfiguration(address);
+	EEPROM.put(address, fsSpeed);
+	address += sizeof(fsSpeed);
+	EEPROM.put(address, fsZoom);
+	address += sizeof(fsZoom);
+	EEPROM.put(address, fsHeightOffset);
+	address += sizeof(fsHeightOffset);
+}
+
