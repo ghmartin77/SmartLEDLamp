@@ -12,7 +12,7 @@ public:
 
 protected:
 	LEDMatrix *pMatrix;
-	unsigned long int lastMillis = 0;
+	unsigned long lastMillis = 0;
 };
 
 #endif /* RUNNABLE_H_ */

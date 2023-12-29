@@ -52,8 +52,6 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 uint8_t socketNumber = 0;
 unsigned long messageNumber;
 
-long lastMatrixRefreshMs = 0;
-
 LEDMatrix matrix(LEDS_WIDTH, LEDS_HEIGHT);
 
 TurnOnRunnable turnOnRunnable(&matrix);
@@ -83,7 +81,6 @@ Runnable* pCurrentRunnable = NULL;
 int sensorPin = A0;
 long sensorValue = 0;
 
-long lmillis = 0;
 uint8_t lastButton = 0;
 uint8_t r = 255, g = 255, b = 255;
 float brightness = 1.0f;
@@ -99,10 +96,11 @@ float maxVal = 0.0f;
 float minVal = 2.0f;
 float curVal = 0.0f;
 
-long lastSensorBurstRead = 0;
-long lastMillis = 0;
-long lastBrightnessAdjustMillis = 0;
-long flushRuntimeConfigurationMillis = 0;
+unsigned long lastButtonPressMillis = 0;
+unsigned long lastSensorBurstReadMillis = 0;
+unsigned long lastBrightnessAdjustMillis = 0;
+unsigned long lastMatrixRefreshMillis = 0;
+unsigned long flushRuntimeConfigurationMillis = 0;
 
 void onButton(uint8_t btn);
 void update();
@@ -198,6 +196,16 @@ void connectToWiFi() {
 	}
 }
 
+void handleInfo() {
+	String ret = F("Version: ");
+	ret += VERSION;
+	ret += "\nUptime (ms): ";
+	ret += millis();
+
+ 	server.send(200, "text/plain", ret.c_str());
+}
+
+
 void handleAction() {
 	String act = server.arg("act");
 	if (act.length() != 0) {
@@ -208,6 +216,7 @@ void handleAction() {
 			turnOnRunnable.init();
 			pCurrentRunnable = &turnOnRunnable;
 		} else if (act == "restart") {
+			server.send(200, "text/plain", "Restarting...");
 			ESP.restart();
 			delay(3000);
 		} else if (act == "resetconfig") {
@@ -215,6 +224,7 @@ void handleAction() {
 				EEPROM.write(i, 0);
 				EEPROM.commit();
 			}
+			server.send(200, "text/plain", "Config reset. Restarting...");
 			ESP.restart();
 			delay(3000);
 		}
@@ -299,6 +309,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload,
 
 void startWebServer() {
 	server.on("/action/", handleAction);
+	server.on("/info", handleInfo);
 	server.begin();
 
 	server.serveStatic("/", SPIFFS, "/", "no-cache");
@@ -897,13 +908,13 @@ void readAnalogPeek() {
 	}
 //	message[message.length() - 1] = '\0';
 //	webSocket.sendTXT(socketNumber, message);
-	lastSensorBurstRead = millis();
+	lastSensorBurstReadMillis = millis();
 }
 
 void loop() {
-	long currentMillis = millis();
+	unsigned long currentMillis = millis();
 
-//	if (currentMillis > lastSensorBurstRead + 6 /*5*/) {
+//	if (currentMillis - lastSensorBurstRead > 6 /*5*/) {
 //		readAnalogPeek();
 //	}
 
@@ -913,7 +924,7 @@ void loop() {
 	Logger.loop();
 
 	if (brightness != targetBrightness
-			&& currentMillis > lastBrightnessAdjustMillis + 25) {
+			&& currentMillis - lastBrightnessAdjustMillis > 25) {
 		lastBrightnessAdjustMillis = currentMillis;
 
 		int brightnessDiff = 100 * targetBrightness - 100 * brightness;
@@ -950,26 +961,26 @@ void loop() {
 			artnet.read();
 		}
 #endif // ARTNET_ENABLE
-	} else if (currentMillis > lastMatrixRefreshMs + 5000) {
-		lastMatrixRefreshMs = currentMillis;
+	} else if (currentMillis - lastMatrixRefreshMillis > 5000) {
+		lastMatrixRefreshMillis = currentMillis;
 		update();
 	}
 
 #ifdef IR_ENABLE
 	decode_results results;
 
-	if (currentMillis > lmillis + 200) {
+	if (currentMillis - lastButtonPressMillis > 200) {
 		lastButton = 0;
 	}
 
 	if (irrecv.decode(&results)) {
 		if (results.value == 0xffffffff && lastButton != BTN_POWER) {
-			lmillis = currentMillis;
+			lastButtonPressMillis = currentMillis;
 		} else if ((results.value & 0xff000000) == 0) {
 			for (int i = 0; i < sizeof(irCodes) / sizeof(irCodes[0]); ++i) {
 				if (irCodes[i] == results.value) {
 					lastButton = i + 1;
-					lmillis = currentMillis;
+					lastButtonPressMillis = currentMillis;
 					break;
 				}
 			}
@@ -987,7 +998,7 @@ void loop() {
 	mqttClient.loop();
 #endif
 
-	if (flushRuntimeConfigurationMillis != 0 && currentMillis >= flushRuntimeConfigurationMillis) {
+	if (flushRuntimeConfigurationMillis != 0 && currentMillis - flushRuntimeConfigurationMillis >= 0) {
 		flushRuntimeConfigurationMillis = 0;
 
 		flushRuntimeConfiguration();

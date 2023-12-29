@@ -19,9 +19,9 @@ void TurnOffRunnable::init() {
 }
 
 void TurnOffRunnable::run() {
-	unsigned long int currentMillis = millis();
+	unsigned long currentMillis = millis();
 
-	if (currentMillis - 10 < lastMillis) {
+	if (currentMillis - lastMillis < 10) {
 		return;
 	}
 

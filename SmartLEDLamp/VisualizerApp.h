@@ -25,7 +25,7 @@ public:
 
 private:
 	Visualizer* visualizers[NO_VISUALIZERS] = { NULL, NULL };
-	unsigned long int lastMillis;
+	unsigned long lastMillis;
 
 	uint8_t* pImageData[NO_VISUALIZERS] = { NULL, NULL };
 };

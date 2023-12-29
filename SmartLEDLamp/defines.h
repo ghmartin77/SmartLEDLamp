@@ -1,7 +1,7 @@
 #ifndef DEFINES_H_
 #define DEFINES_H_
 
-#define VERSION "0.3"
+#define VERSION "0.4"
 
 // Uncomment next line to enable IR code if you don't use an IR receiver
 // #define IR_ENABLE

@@ -87,10 +87,10 @@ void VisualizerApp::update() {
 }
 
 void VisualizerApp::run() {
-	unsigned long int currentMillis = millis();
+	unsigned long currentMillis = millis();
 
 	// run with 25 fps
-	if (currentMillis - 40 < lastMillis) {
+	if (currentMillis - lastMillis < 40) {
 		return;
 	}
 
